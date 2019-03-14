@@ -9,7 +9,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
-	"os"
 	"strings"
 	"time"
 )
@@ -36,9 +35,10 @@ type DocumentSide string
 
 // DocumentRequest represents a document request to Onfido API
 type DocumentRequest struct {
-	File io.ReadSeeker
-	Type DocumentType
-	Side DocumentSide
+	File     io.ReadSeeker
+	FileName string
+	Type     DocumentType
+	Side     DocumentSide
 }
 
 // Document represents a document in Onfido API
@@ -69,7 +69,7 @@ func escapeQuotes(s string) string {
 // file name, and file content type.
 // this is used instead of multipart.Writer.CreateFormFile because Onfido API
 // doesn't accept 'application/octet-stream' as content-type.
-func createFormFile(writer *multipart.Writer, fieldname string, file io.ReadSeeker) (io.Writer, error) {
+func createFormFile(writer *multipart.Writer, fieldname string, filename string, file io.ReadSeeker) (io.Writer, error) {
 	buffer := make([]byte, 512)
 	if _, err := file.Read(buffer); err != nil {
 		return nil, err
@@ -77,11 +77,6 @@ func createFormFile(writer *multipart.Writer, fieldname string, file io.ReadSeek
 	if _, err := file.Seek(0, 0); err != nil {
 		return nil, err
 	}
-	var filename string
-	if f, ok := file.(*os.File); ok {
-		filename = f.Name()
-	}
-
 	h := make(textproto.MIMEHeader)
 	h.Set("Content-Disposition",
 		fmt.Sprintf(`form-data; name="%s"; filename="%s"`,
@@ -97,7 +92,7 @@ func (c *Client) UploadDocument(ctx context.Context, applicantID string, dr Docu
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	part, err := createFormFile(writer, "file", dr.File)
+	part, err := createFormFile(writer, "file", dr.FileName, dr.File)
 	if err != nil {
 		return nil, err
 	}
